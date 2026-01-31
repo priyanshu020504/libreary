@@ -1,16 +1,6 @@
 import axios from 'axios';
 
-// Use env in build; when on Vercel frontend use production backend, else localhost for dev
-const getApiUrl = () => {
-  if (typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-    return 'https://libreary-flame.vercel.app/api';
-  }
-  return 'http://localhost:5000/api';
-};
-const API_URL = getApiUrl();
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,

@@ -10,17 +10,9 @@ if (!process.env.JWT_SECRET && !process.env.VERCEL) {
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS: allow Vercel frontend in production; allow all in development
-const allowedOrigins = ['https://libreary-2fno.vercel.app', /^https:\/\/.*\.vercel\.app$/];
+// CORS: allow frontend origin in production, all in development
 const corsOptions = {
-  origin: process.env.VERCEL
-    ? (origin, cb) => {
-        if (!origin) return cb(null, true);
-        if (allowedOrigins.some((o) => (typeof o === 'string' ? origin === o : o.test(origin)))) return cb(null, true);
-        if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return cb(null, true);
-        return cb(null, false);
-      }
-    : (process.env.FRONTEND_URL || true),
+  origin: process.env.FRONTEND_URL || true,
   credentials: true,
 };
 app.use(cors(corsOptions));
