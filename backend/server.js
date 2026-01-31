@@ -34,6 +34,11 @@ app.use('/api/payments', require('./routes/payments'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/batches', require('./routes/batches'));
 
+// Root: avoid "Cannot GET /" on Vercel
+app.get('/', (req, res) => {
+  res.json({ status: 'OK', message: 'Library API', api: '/api/health' });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
