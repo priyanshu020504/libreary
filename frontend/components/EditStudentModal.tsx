@@ -23,7 +23,7 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get('/batches');
+        const res = await api.get('/api/batches');
         setBatches(res.data || []);
       } catch {
         // ignore
@@ -55,7 +55,7 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
         updateData.password = formData.password;
       }
 
-      await api.put(`/students/${student.id}`, updateData);
+      await api.put(`/api/students/${student.id}`, updateData);
       toast.success('Student updated successfully');
       onSuccess();
     } catch (error: any) {

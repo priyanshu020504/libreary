@@ -31,7 +31,7 @@ export default function PaymentModal({ student, onClose, onSuccess }: { student:
     setLoading(true);
 
     try {
-      await api.patch(`/students/${student.id}/payment-totals`, {
+      await api.patch(`/api/students/${student.id}/payment-totals`, {
         paid_amount: parseFloat(formData.paid_amount),
       });
       toast.success('Payment updated successfully');

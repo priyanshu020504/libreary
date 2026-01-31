@@ -15,7 +15,7 @@ export default function StudentDetailModal({ student, onClose, onRefresh }: { st
 
   const fetchStats = async () => {
     try {
-      const response = await api.get(`/payments/student/${student.id}/stats`);
+      const response = await api.get(`/api/payments/student/${student.id}/stats`);
       setStats(response.data);
     } catch (error: any) {
       toast.error('Failed to load student details');

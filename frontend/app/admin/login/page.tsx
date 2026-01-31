@@ -20,7 +20,7 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/admin/login', formData);
+      const response = await api.post('/api/auth/admin/login', formData);
       setAuth(response.data.token, response.data.user);
       toast.success('Login successful!');
       router.push('/admin/dashboard');

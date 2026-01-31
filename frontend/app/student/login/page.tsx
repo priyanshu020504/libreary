@@ -20,7 +20,7 @@ export default function StudentLogin() {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/student/login', formData);
+      const response = await api.post('/api/auth/student/login', formData);
       setAuth(response.data.token, response.data.user);
       toast.success('Login successful!');
       router.push('/student/dashboard');

@@ -38,7 +38,7 @@ export default function StudentsList({ onEdit, onRefresh }: { onEdit: (student: 
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/students', {
+      const response = await api.get('/api/students', {
         params: { search, page, limit: 10 }
       });
       setStudents(response.data.students);
@@ -57,7 +57,7 @@ export default function StudentsList({ onEdit, onRefresh }: { onEdit: (student: 
     }
 
     try {
-      await api.delete(`/students/${id}`);
+      await api.delete(`/api/students/${id}`);
       toast.success('Student deleted successfully');
       fetchStudents();
       onRefresh();

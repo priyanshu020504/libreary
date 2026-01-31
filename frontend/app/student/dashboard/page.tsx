@@ -53,10 +53,10 @@ export default function StudentDashboard() {
   const fetchData = async () => {
     try {
       const auth = getAuth();
-      const studentResponse = await api.get(`/students/${auth?.user.id}`);
+      const studentResponse = await api.get(`/api/students/${auth?.user.id}`);
       setStudent(studentResponse.data);
 
-      const statsResponse = await api.get(`/payments/student/${auth?.user.id}/stats`);
+      const statsResponse = await api.get(`/api/payments/student/${auth?.user.id}/stats`);
       setStats(statsResponse.data);
     } catch (error: any) {
       toast.error('Failed to load data');

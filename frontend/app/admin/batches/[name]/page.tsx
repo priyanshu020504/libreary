@@ -29,7 +29,7 @@ export default function AdminBatchPage() {
   const refresh = async () => {
     try {
       setLoading(true);
-      const res = await api.get(`/batches/${name}`);
+      const res = await api.get(`/api/batches/${name}`);
       setBatch(res.data.batch);
       setStudents(res.data.students || []);
       setCapacity(String(res.data.batch?.total_seats ?? 92));
@@ -56,7 +56,7 @@ export default function AdminBatchPage() {
 
   const moveStudent = async (studentId: number, newBatch: BatchName) => {
     try {
-      await api.patch('/batches/move-student', { student_id: studentId, batch: newBatch });
+      await api.patch('/api/batches/move-student', { student_id: studentId, batch: newBatch });
       toast.success('Student moved successfully');
       refresh();
     } catch (error: any) {
@@ -71,7 +71,7 @@ export default function AdminBatchPage() {
       return;
     }
     try {
-      await api.put(`/batches/${name}`, { total_seats: total });
+      await api.put(`/api/batches/${name}`, { total_seats: total });
       toast.success('Seat capacity updated');
       refresh();
     } catch (error: any) {

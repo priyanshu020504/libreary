@@ -22,7 +22,7 @@ export default function StudentRegister() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get('/batches');
+        const res = await api.get('/api/batches');
         setBatches(res.data || []);
       } catch {
         // ok to ignore; dropdown will still work
@@ -34,7 +34,7 @@ export default function StudentRegister() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.post('/auth/student/register', formData);
+      await api.post('/api/auth/student/register', formData);
       toast.success('Registration successful! Please login.');
       router.push('/student/login');
     } catch (error: any) {

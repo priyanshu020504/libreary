@@ -23,7 +23,7 @@ export default function AddStudentModal({ onClose, onSuccess }: { onClose: () =>
     setLoading(true);
 
     try {
-      await api.post('/students', formData);
+      await api.post('/api/students', formData);
       toast.success('Student added successfully');
       onSuccess();
     } catch (error: any) {
