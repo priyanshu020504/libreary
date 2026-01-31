@@ -2,9 +2,9 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-// Dev-only fallback so backend runs locally without .env; production must set JWT_SECRET
-if (!process.env.JWT_SECRET && !process.env.VERCEL) {
-  process.env.JWT_SECRET = 'dev-secret-change-in-production';
+// JWT fallback so auth works; set JWT_SECRET in Vercel env for production security
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = process.env.VERCEL ? 'vercel-production-secret-change-in-dashboard' : 'dev-secret-change-in-production';
 }
 
 const app = express();

@@ -1,8 +1,11 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const os = require('os');
 
-// Use DATABASE_PATH for Vercel (e.g. /tmp/library.db); default to local file
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'library.db');
+// On Vercel use /tmp (writable); else use DATABASE_PATH or local file
+const dbPath =
+  process.env.DATABASE_PATH ||
+  (process.env.VERCEL ? path.join(os.tmpdir(), 'library.db') : path.join(__dirname, 'library.db'));
 const db = new sqlite3.Database(dbPath);
 
 function ensureStudentsColumns() {
