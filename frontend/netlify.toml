@@ -1,0 +1,7 @@
+# Netlify build config when project root is this frontend folder.
+[build]
+  command = "npm ci && npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
