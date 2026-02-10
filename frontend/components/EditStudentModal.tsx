@@ -95,7 +95,7 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
 
       // If no fields were changed, don't make the request
       if (Object.keys(sanitizedData).length === 0) {
-        toast.info('No changes to update');
+        toast('No changes to update');
         onClose();
         return;
       }
