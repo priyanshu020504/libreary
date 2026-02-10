@@ -151,6 +151,15 @@ router.put('/:id', authenticateAdmin, [
   const { id } = req.params;
   const updates = req.body;
 
+  // HARD BLOCK: Never allow soft-delete fields in update
+  if (updates.student_id !== undefined) {
+    return res.status(400).json({ error: 'student_id cannot be modified' });
+  }
+  delete updates.deleted_at;
+  delete updates.is_active;
+  delete updates.payment_status;
+  delete updates.totalFee;
+
   // Log payload for debugging
   console.log('[payments] update payload for id=', id, updates);
 
