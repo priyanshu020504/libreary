@@ -201,28 +201,39 @@ router.put('/:id', authenticateAdmin, [
   const { id } = req.params;
   const updates = req.body;
 
+  // Security: reject any attempt to modify guarded fields
+  const guarded = ['deleted_at', 'is_active', 'status'];
+  for (const g of guarded) {
+    if (Object.prototype.hasOwnProperty.call(updates, g)) {
+      return res.status(400).json({ error: `Modifying '${g}' is not allowed` });
+    }
+  }
+
+  // Temporary logging to help debug update issues (can be removed later)
+  console.log('[students] update payload for id=', id, updates);
+
   // Build dynamic update query (partial update / $set semantics)
   const fields = [];
   const values = [];
 
-  if (updates.name) {
+  if (updates.name !== undefined) {
     fields.push('name = ?');
     values.push(updates.name);
   }
-  if (updates.mobile) {
+  if (updates.mobile !== undefined) {
     fields.push('mobile = ?');
     values.push(updates.mobile);
   }
-  if (updates.parent_mobile) {
+  if (updates.parent_mobile !== undefined) {
     fields.push('parent_mobile = ?');
     values.push(updates.parent_mobile);
   }
-  if (updates.address) {
+  if (updates.address !== undefined) {
     fields.push('address = ?');
     values.push(updates.address);
   }
   // Handle batch and seat_number together to ensure consistency
-  if (updates.batch || updates.seat_number !== undefined) {
+  if (updates.batch !== undefined || updates.seat_number !== undefined) {
     db.get('SELECT batch, seat_number FROM students WHERE id = ?', [id], (err, current) => {
       if (err) return res.status(500).json({ error: 'Database error' });
       if (!current) return res.status(404).json({ error: 'Student not found' });
@@ -231,7 +242,7 @@ router.put('/:id', authenticateAdmin, [
       const targetSeatNumber = updates.seat_number !== undefined ? updates.seat_number : current.seat_number;
       
       // If batch is changing, check seat availability
-      if (updates.batch && current.batch !== updates.batch) {
+      if (updates.batch !== undefined && current.batch !== updates.batch) {
         db.get('SELECT total_seats FROM batches WHERE name = ?', [updates.batch], (err2, batch) => {
           if (err2) return res.status(500).json({ error: 'Database error' });
           if (!batch) return res.status(400).json({ error: 'Invalid batch' });
@@ -254,7 +265,7 @@ router.put('/:id', authenticateAdmin, [
       
       function validateSeatAndUpdate() {
         // Allow any seat number and duplicates; just set provided values
-        if (updates.batch) {
+        if (updates.batch !== undefined) {
           fields.push('batch = ?');
           values.push(targetBatch);
         }
@@ -271,11 +282,11 @@ router.put('/:id', authenticateAdmin, [
   processRemainingFields();
   
   function processRemainingFields() {
-    if (updates.membership_start_date) {
+    if (updates.membership_start_date !== undefined) {
       fields.push('membership_start_date = ?');
       values.push(updates.membership_start_date);
     }
-    if (updates.membership_end_date) {
+    if (updates.membership_end_date !== undefined) {
       fields.push('membership_end_date = ?');
       values.push(updates.membership_end_date);
     }
@@ -283,7 +294,7 @@ router.put('/:id', authenticateAdmin, [
       fields.push('monthly_due_date = ?');
       values.push(updates.monthly_due_date);
     }
-    if (updates.timing) {
+    if (updates.timing !== undefined) {
       fields.push('timing = ?');
       values.push(updates.timing);
       // also store parsed start_time and end_time when possible
@@ -297,7 +308,7 @@ router.put('/:id', authenticateAdmin, [
         }
       }
     }
-    if (updates.password) {
+    if (updates.password !== undefined) {
       bcrypt.hash(updates.password, 10, (err, hashedPassword) => {
         if (err) {
           return res.status(500).json({ error: 'Error hashing password' });
@@ -324,6 +335,9 @@ router.put('/:id', authenticateAdmin, [
 
       values.push(id);
       const query = `UPDATE students SET ${fields.join(', ')} WHERE id = ?`;
+
+      // Log SQL for debugging
+      console.log('[students] executing SQL:', query, values);
 
       db.run(query, values, function(err) {
         if (err) {

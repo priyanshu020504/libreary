@@ -151,6 +151,9 @@ router.put('/:id', authenticateAdmin, [
   const { id } = req.params;
   const updates = req.body;
 
+  // Log payload for debugging
+  console.log('[payments] update payload for id=', id, updates);
+
   const fields = [];
   const values = [];
 
@@ -158,11 +161,11 @@ router.put('/:id', authenticateAdmin, [
     fields.push('amount = ?');
     values.push(updates.amount);
   }
-  if (updates.payment_date) {
+  if (updates.payment_date !== undefined) {
     fields.push('payment_date = ?');
     values.push(updates.payment_date);
   }
-  if (updates.status) {
+  if (updates.status !== undefined) {
     fields.push('status = ?');
     values.push(updates.status);
   }
@@ -173,6 +176,9 @@ router.put('/:id', authenticateAdmin, [
 
   values.push(id);
   const query = `UPDATE payments SET ${fields.join(', ')} WHERE id = ?`;
+
+  // Log SQL for debugging
+  console.log('[payments] executing SQL:', query, values);
 
   db.run(query, values, function(err) {
     if (err) {

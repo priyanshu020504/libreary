@@ -122,6 +122,7 @@ router.patch(
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     const { student_id, batch } = req.body;
+    console.log('[batches] move-student payload:', { student_id, batch });
     db.serialize(() => {
       db.run('BEGIN IMMEDIATE TRANSACTION');
       db.get(`SELECT id, batch FROM students WHERE id = ?`, [student_id], (err, student) => {
@@ -148,7 +149,9 @@ router.patch(
             return res.status(400).json({ error: 'Selected batch is full' });
           }
 
-          db.run(`UPDATE students SET batch = ? WHERE id = ?`, [batch, student_id], function (err3) {
+          const query = `UPDATE students SET batch = ? WHERE id = ?`;
+          console.log('[batches] executing SQL:', query, [batch, student_id]);
+          db.run(query, [batch, student_id], function (err3) {
             if (err3) {
               db.run('ROLLBACK');
               return res.status(500).json({ error: 'Database error' });
