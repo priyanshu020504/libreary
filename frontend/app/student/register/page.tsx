@@ -17,7 +17,10 @@ export default function StudentRegister() {
     address: '',
     password: '',
     batch: 'morning',
-    timing: '09:00 - 10:00',
+    // keep timing fields flexible: students can enter any start/end
+    timing: '',
+    start_time: '',
+    end_time: '',
   });
 
   useEffect(() => {
@@ -35,7 +38,12 @@ export default function StudentRegister() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.post('/api/auth/student/register', formData);
+      const payload: any = { ...formData };
+      // build timing string from start_time and end_time to match backend expectations
+      if (payload.start_time || payload.end_time) {
+        payload.timing = `${(payload.start_time || '').trim()}${payload.start_time && payload.end_time ? ' - ' : ''}${(payload.end_time || '').trim()}`.trim();
+      }
+      await api.post('/api/auth/student/register', payload);
       toast.success('Registration successful! Please login.');
       router.push('/student/login');
     } catch (error: any) {
@@ -114,17 +122,26 @@ export default function StudentRegister() {
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Timing *</label>
-              <select
-                value={formData.timing}
-                onChange={(e) => setFormData({ ...formData, timing: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition bg-white"
+              <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
+              <input
+                type="text"
+                placeholder="e.g. 09:00 or 09:00 AM"
+                value={(formData as any).start_time}
+                onChange={(e) => setFormData({ ...(formData as any), start_time: e.target.value } as any)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
                 required
-              >
-                <option value="09:00 - 10:00">09:00 – 10:00</option>
-                <option value="10:00 - 11:00">10:00 – 11:00</option>
-                <option value="14:30 - 17:30">14:30 – 17:30</option>
-              </select>
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
+              <input
+                type="text"
+                placeholder="e.g. 10:00 or 10:00 AM"
+                value={(formData as any).end_time}
+                onChange={(e) => setFormData({ ...(formData as any), end_time: e.target.value } as any)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
+                required
+              />
             </div>
           </div>
 
