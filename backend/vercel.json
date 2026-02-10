@@ -1,1 +1,5 @@
-{}
+{
+  "buildCommand": "npm install",
+  "framework": "express",
+  "knownErrors": []
+}
