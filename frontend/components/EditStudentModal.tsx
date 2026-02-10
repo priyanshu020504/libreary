@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { sanitizePayload } from '@/lib/sanitizePayload';
 
 export default function EditStudentModal({ student, onClose, onSuccess }: { student: any; onClose: () => void; onSuccess: () => void }) {
   const [formData, setFormData] = useState({
@@ -37,28 +38,51 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
     setLoading(true);
 
     try {
-      const updateData: any = {
-        name: formData.name,
-        mobile: formData.mobile,
-        parent_mobile: (formData as any).parent_mobile,
-        address: (formData as any).address,
-        batch: (formData as any).batch,
-        timing: (formData as any).timing,
-        membership_start_date: formData.membership_start_date,
-        membership_end_date: formData.membership_end_date,
-        monthly_due_date: parseInt(formData.monthly_due_date),
-      };
+      const updateData: any = {};
 
-      if ((formData as any).seat_number) {
+      // ONLY include fields that are actually being updated (not empty/null)
+      // This prevents corrupting student records with null values
+      
+      if (formData.name && formData.name !== student.name) {
+        updateData.name = formData.name;
+      }
+      if (formData.mobile && formData.mobile !== student.mobile) {
+        updateData.mobile = formData.mobile;
+      }
+      if ((formData as any).parent_mobile !== (student.parent_mobile || '')) {
+        if ((formData as any).parent_mobile) {
+          updateData.parent_mobile = (formData as any).parent_mobile;
+        }
+      }
+      if ((formData as any).address !== (student.address || '')) {
+        if ((formData as any).address) {
+          updateData.address = (formData as any).address;
+        }
+      }
+      if ((formData as any).batch !== student.batch) {
+        updateData.batch = (formData as any).batch;
+      }
+      if ((formData as any).timing !== student.timing) {
+        updateData.timing = (formData as any).timing;
+      }
+      if (formData.membership_start_date !== String(student.membership_start_date).slice(0, 10)) {
+        updateData.membership_start_date = formData.membership_start_date;
+      }
+      if (formData.membership_end_date !== String(student.membership_end_date).slice(0, 10)) {
+        updateData.membership_end_date = formData.membership_end_date;
+      }
+      if (parseInt(formData.monthly_due_date) !== student.monthly_due_date) {
+        updateData.monthly_due_date = parseInt(formData.monthly_due_date);
+      }
+      if ((formData as any).seat_number && (formData as any).seat_number !== student.seat_number) {
         updateData.seat_number = parseInt((formData as any).seat_number);
       }
-
       if (formData.password) {
         updateData.password = formData.password;
       }
 
-      // parse timing into start_time and end_time (if provided)
-      if (typeof updateData.timing === 'string' && updateData.timing.includes('-')) {
+      // Parse timing into start_time and end_time (if timing was changed)
+      if (updateData.timing && typeof updateData.timing === 'string' && updateData.timing.includes('-')) {
         const parts = updateData.timing.split('-').map((p: string) => p.trim());
         if (parts.length >= 2) {
           updateData.start_time = parts[0];
@@ -66,7 +90,17 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
         }
       }
 
-      await api.put(`/api/students/${student.id}`, updateData);
+      // Sanitize: Remove any remaining empty/null/undefined values
+      const sanitizedData = sanitizePayload(updateData);
+
+      // If no fields were changed, don't make the request
+      if (Object.keys(sanitizedData).length === 0) {
+        toast.info('No changes to update');
+        onClose();
+        return;
+      }
+
+      await api.put(`/api/students/${student.id}`, sanitizedData);
       toast.success('Student updated successfully');
       onSuccess();
     } catch (error: any) {
