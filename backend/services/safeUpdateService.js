@@ -149,16 +149,30 @@ async function safeUpdateStudent(studentId, updates) {
     delete updates.status;
     delete updates.id; // ID cannot be changed
     delete updates.password; // Password changes require separate endpoint
+    delete updates.mobile; // Mobile is unique identifier, cannot change
+    delete updates.created_at; // Created timestamp cannot change
 
     // STEP 4: Build safe UPDATE with strict checks
     const fields = [];
     const values = [];
+    const REQUIRED_FIELDS_PROTECTED = ['name', 'batch'];
 
     Object.keys(updates).forEach((key) => {
-      if (updates[key] !== undefined) {
-        fields.push(`${key} = ?`);
-        values.push(updates[key]);
+      // Skip undefined values
+      if (updates[key] === undefined) {
+        return;
       }
+
+      // CRITICAL: Protect required fields from being set to null or empty
+      if (REQUIRED_FIELDS_PROTECTED.includes(key)) {
+        if (updates[key] === null || updates[key] === '') {
+          console.warn(`[safeUpdate] BLOCKED: Attempt to set required field '${key}' to ${updates[key]}`);
+          return; // Skip this update
+        }
+      }
+
+      fields.push(`${key} = ?`);
+      values.push(updates[key]);
     });
 
     if (fields.length === 0) {
