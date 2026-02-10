@@ -123,12 +123,23 @@ router.patch(
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     const { student_id, batch } = req.body;
-    console.log('[batches] move-student payload:', { student_id, batch });
+
+    // HARD VALIDATION: student_id must be provided and valid
+    if (!student_id) {
+      return res.status(400).json({ error: 'Student ID is required' });
+    }
+
+    const parsedId = parseInt(student_id, 10);
+    if (isNaN(parsedId) || parsedId <= 0) {
+      return res.status(400).json({ error: 'Student ID must be a valid positive number' });
+    }
+
+    console.log('[batches] move-student payload:', { student_id: parsedId, batch });
 
     try {
       // Check if student exists and get current batch
       const student = await new Promise((resolve, reject) => {
-        db.get(`SELECT id, batch FROM students WHERE id = ?`, [student_id], (err, s) => {
+        db.get(`SELECT id, batch FROM students WHERE id = ?`, [parsedId], (err, s) => {
           if (err) reject(err);
           else if (!s) reject(new Error('Student not found'));
           else resolve(s);
@@ -155,7 +166,7 @@ router.patch(
       });
 
       // Use safe update to move student
-      const updatedStudent = await safeUpdateStudent(student_id, { batch });
+      const updatedStudent = await safeUpdateStudent(parsedId, { batch });
       res.json({ message: 'Student moved safely', batch, student: updatedStudent });
     } catch (error) {
       console.error('[batches] move-student error:', error.message);

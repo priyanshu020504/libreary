@@ -185,8 +185,18 @@ router.post('/', authenticateAdmin, [
 router.put('/:id', authenticateAdmin, async (req, res) => {
   const id = req.params.id;
 
+  // HARD VALIDATION: ID must be provided and valid
+  if (!id) {
+    return res.status(400).json({ error: 'Student ID is required' });
+  }
+
+  const parsedId = parseInt(id, 10);
+  if (isNaN(parsedId) || parsedId <= 0) {
+    return res.status(400).json({ error: 'Student ID must be a valid positive number' });
+  }
+
   try {
-    const updatedStudent = await safeUpdateStudent(id, req.body);
+    const updatedStudent = await safeUpdateStudent(parsedId, req.body);
     res.json({ message: 'Student updated safely', student: updatedStudent });
   } catch (error) {
     console.error('[students] PUT /:id error:', error.message);
@@ -203,7 +213,18 @@ router.patch('/:id/payment-totals', authenticateAdmin, [
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { id } = req.params;
+  const id = req.params.id;
+
+  // HARD VALIDATION: ID must be provided and valid
+  if (!id) {
+    return res.status(400).json({ error: 'Student ID is required' });
+  }
+
+  const parsedId = parseInt(id, 10);
+  if (isNaN(parsedId) || parsedId <= 0) {
+    return res.status(400).json({ error: 'Student ID must be a valid positive number' });
+  }
+
   const { paid_amount } = req.body;
 
   try {
@@ -212,7 +233,7 @@ router.patch('/:id/payment-totals', authenticateAdmin, [
     const remaining = Math.max(0, MONTHLY_FEE - normalizedPaid);
 
     // Use safe update to modify payment fields
-    const updatedStudent = await safeUpdateStudent(id, {
+    const updatedStudent = await safeUpdateStudent(parsedId, {
       paid_amount: normalizedPaid,
       pending_amount: remaining
     });
@@ -231,10 +252,20 @@ router.patch('/:id/payment-totals', authenticateAdmin, [
 
 // Delete student (Admin only) - SAFE delete with cascade
 router.delete('/:id', authenticateAdmin, async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id;
+
+  // HARD VALIDATION: ID must be provided and valid
+  if (!id) {
+    return res.status(400).json({ error: 'Student ID is required' });
+  }
+
+  const parsedId = parseInt(id, 10);
+  if (isNaN(parsedId) || parsedId <= 0) {
+    return res.status(400).json({ error: 'Student ID must be a valid positive number' });
+  }
 
   try {
-    const result = await safeDeleteStudent(id, true);
+    const result = await safeDeleteStudent(parsedId, true);
     res.json(result);
   } catch (error) {
     console.error('[students] DELETE /:id error:', error.message);

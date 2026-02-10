@@ -4,6 +4,8 @@
  * Provides atomic, verified update operations for student records.
  * GUARANTEES:
  * - Student records CANNOT be accidentally deleted or corrupted
+ * - Student ID CANNOT change during update
+ * - Only UPDATE statements are used (NEVER INSERT/REPLACE)
  * - All updates are wrapped in transactions with pre/post verification
  * - If verification fails, automatic rollback occurs
  * - Required fields are protected and cannot be nullified
@@ -58,7 +60,7 @@ function verifyStudentIntegrity(studentId, snapshot) {
       // Verify id hasn't changed (data corruption check)
       if (student.id !== snapshot.id) {
         return reject(new Error(
-          `CRITICAL: Student ID changed from ${snapshot.id} to ${student.id}!`
+          `CRITICAL: Student ID changed from ${snapshot.id} to ${student.id}! (INSERT/REPLACE detected)`
         ));
       }
 
@@ -97,32 +99,50 @@ function restoreFromSnapshot(studentId, snapshot) {
 /**
  * SAFE UPDATE WRAPPER - Use this for ALL student updates
  * 
- * @param {number} studentId - Student to update
- * @param {Object} updates - Field updates (will be sanitized)
- * @returns {Promise<Object>} Updated student record
+ * CRITICAL GUARANTEES:
+ * 1. Student ID MUST be a valid number (required, never undefined/null)
+ * 2. If ID is missing/invalid, throws error (never auto-creates)
+ * 3. Only UPDATE statements execute (never INSERT/REPLACE)
+ * 4. Student ID CANNOT change (verified after update)
+ * 5. Automatic rollback on ANY failure
  * 
  * ATOMIC PROCESS:
- * 1. Snapshot current student
- * 2. Delete guarded fields from updates
- * 3. Execute UPDATE with strict field checks
- * 4. Verify student integrity after update
- * 5. If verification fails, automatic rollback to snapshot
+ * 1. Validate student ID is valid number
+ * 2. Snapshot current student (confirms ID exists)
+ * 3. Delete guarded fields from updates
+ * 4. Execute UPDATE ONLY (never INSERT)
+ * 5. Verify student integrity after update
+ * 6. If verification fails, automatic rollback to snapshot
+ * 
+ * @param {number} studentId - Student to update (REQUIRED)
+ * @param {Object} updates - Field updates (will be sanitized)
+ * @returns {Promise<Object>} Updated student record
  */
 async function safeUpdateStudent(studentId, updates) {
   let snapshot;
 
   try {
-    // STEP 1: Snapshot the current student
-    console.log(`[safeUpdate] SNAPSHOT: Student ${studentId}`);
-    snapshot = await snapshotStudent(studentId);
-    console.log(`[safeUpdate] Snapshot successful:`, {
+    // STEP 1: HARD VALIDATION - ID must be valid
+    if (!studentId && studentId !== 0) {
+      throw new Error('Student ID is required for update');
+    }
+    
+    const parsedId = parseInt(studentId, 10);
+    if (isNaN(parsedId) || parsedId <= 0) {
+      throw new Error('Student ID must be a valid positive number');
+    }
+
+    // STEP 2: Snapshot the current student (confirms ID exists in database)
+    console.log(`[safeUpdate] VALIDATING ID: Student ${parsedId}`);
+    snapshot = await snapshotStudent(parsedId);
+    console.log(`[safeUpdate] ID VALIDATED - Snapshot successful:`, {
       id: snapshot.id,
       name: snapshot.name,
       batch: snapshot.batch,
       fieldsCount: Object.keys(snapshot).length
     });
 
-    // STEP 2: Hard-block guarded fields
+    // STEP 3: Hard-block guarded fields
     console.log(`[safeUpdate] SANITIZING: Removing guarded fields`);
     delete updates.deleted_at;
     delete updates.is_active;
@@ -130,7 +150,7 @@ async function safeUpdateStudent(studentId, updates) {
     delete updates.id; // ID cannot be changed
     delete updates.password; // Password changes require separate endpoint
 
-    // STEP 3: Build safe UPDATE with strict checks
+    // STEP 4: Build safe UPDATE with strict checks
     const fields = [];
     const values = [];
 
@@ -146,35 +166,41 @@ async function safeUpdateStudent(studentId, updates) {
       return snapshot; // Return current state
     }
 
-    values.push(studentId);
+    values.push(parsedId);
     const sql = `UPDATE students SET ${fields.join(', ')} WHERE id = ?`;
 
-    console.log(`[safeUpdate] EXECUTING: ${sql}`, values);
+    console.log(`[safeUpdate] EXECUTING UPDATE ONLY: ${sql}`, values);
+
+    // CRITICAL: Verify that SQL uses UPDATE, never INSERT/REPLACE
+    if (sql.toUpperCase().includes('INSERT') || sql.toUpperCase().includes('REPLACE')) {
+      throw new Error('CRITICAL: Attempt to use INSERT/REPLACE in update flow!');
+    }
 
     // Execute update within promise
     await new Promise((resolve, reject) => {
       db.run(sql, values, function (err) {
         if (err) return reject(err);
         if (this.changes === 0) {
-          return reject(new Error(`Student ${studentId} not found`));
+          return reject(new Error(`Student ${parsedId} not found`));
         }
-        console.log(`[safeUpdate] UPDATE successful (${this.changes} row(s) changed)`);
+        console.log(`[safeUpdate] UPDATE SUCCESSFUL (${this.changes} row(s) changed)`);
         resolve();
       });
     });
 
-    // STEP 4: Verify integrity after update
+    // STEP 5: Verify integrity after update
     console.log(`[safeUpdate] VERIFYING: Student integrity check`);
-    const updatedStudent = await verifyStudentIntegrity(studentId, snapshot);
-    console.log(`[safeUpdate] Verification successful:`, {
+    const updatedStudent = await verifyStudentIntegrity(parsedId, snapshot);
+    console.log(`[safeUpdate] VERIFICATION SUCCESSFUL:`, {
       id: updatedStudent.id,
       name: updatedStudent.name,
-      batch: updatedStudent.batch
+      batch: updatedStudent.batch,
+      idUnchanged: updatedStudent.id === snapshot.id
     });
 
     return updatedStudent;
   } catch (error) {
-    // STEP 5: ROLLBACK on any failure
+    // STEP 6: ROLLBACK on any failure
     console.error(`[safeUpdate] ERROR: ${error.message}`);
     console.error(`[safeUpdate] INITIATING ROLLBACK...`);
 
@@ -200,23 +226,36 @@ async function safeUpdateStudent(studentId, updates) {
 /**
  * SAFE DELETE - Prevents accidental cascading deletes
  * Only allows explicit delete with confirmation
+ * 
+ * @param {number} studentId - Student to delete
+ * @param {boolean} confirmDeletion - MUST be true to proceed
  */
 async function safeDeleteStudent(studentId, confirmDeletion = false) {
   if (!confirmDeletion) {
     throw new Error('Student deletion must be explicitly confirmed');
   }
 
+  // Validate ID
+  if (!studentId && studentId !== 0) {
+    throw new Error('Student ID is required for deletion');
+  }
+  
+  const parsedId = parseInt(studentId, 10);
+  if (isNaN(parsedId) || parsedId <= 0) {
+    throw new Error('Student ID must be a valid positive number');
+  }
+
   return new Promise((resolve, reject) => {
     // Delete associated payments first (cascade)
-    db.run('DELETE FROM payments WHERE student_id = ?', [studentId], (err) => {
+    db.run('DELETE FROM payments WHERE student_id = ?', [parsedId], (err) => {
       if (err) return reject(err);
 
       // Then delete student
-      db.run('DELETE FROM students WHERE id = ?', [studentId], function (err) {
+      db.run('DELETE FROM students WHERE id = ?', [parsedId], function (err) {
         if (err) return reject(err);
-        if (this.changes === 0) return reject(new Error(`Student ${studentId} not found`));
+        if (this.changes === 0) return reject(new Error(`Student ${parsedId} not found`));
 
-        console.log(`[safeDelete] Student ${studentId} deleted (with cascade)`);
+        console.log(`[safeDelete] Student ${parsedId} deleted (with cascade)`);
         resolve({ message: 'Student deleted successfully' });
       });
     });
