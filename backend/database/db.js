@@ -89,7 +89,7 @@ class DatabaseWrapper {
     try {
       console.log('[DB] Initializing Vercel Postgres schema...');
 
-      // Create students table
+      // Create students table (as requested)
       await sql`
         CREATE TABLE IF NOT EXISTS students (
           id SERIAL PRIMARY KEY,
@@ -97,17 +97,15 @@ class DatabaseWrapper {
           mobile TEXT UNIQUE NOT NULL,
           parent_mobile TEXT,
           address TEXT,
-          batch TEXT,
-          timing TEXT,
+          batch TEXT NOT NULL,
           start_time TEXT,
           end_time TEXT,
-          password TEXT NOT NULL,
-          membership_start_date TEXT NOT NULL,
-          membership_end_date TEXT NOT NULL,
-          monthly_due_date INTEGER NOT NULL,
-          paid_amount REAL DEFAULT 0,
-          pending_amount REAL DEFAULT 0,
-          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+          seat_number INTEGER,
+          paid_amount INTEGER DEFAULT 0,
+          pending_amount INTEGER DEFAULT 400,
+          membership_start_date DATE,
+          membership_end_date DATE,
+          created_at TIMESTAMP DEFAULT NOW()
         )
       `;
       console.log('[DB] students table ready');
