@@ -44,6 +44,21 @@ export default function StudentDetailModal({ student, onClose, onRefresh }: { st
           </div>
         ) : (
           <div className="p-6 space-y-6">
+            {/* Expiry warning */}
+            {(() => {
+              const end = new Date(student.membership_end_date);
+              const now = new Date();
+              const diffMs = end.getTime() - now.getTime();
+              const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+              if (daysRemaining <= 5 && daysRemaining >= 0) {
+                return (
+                  <div className="rounded-md p-3 bg-red-900/20 border border-red-700 text-red-100">
+                    Your membership will expire in {daysRemaining} day{daysRemaining !== 1 ? 's' : ''}.
+                  </div>
+                );
+              }
+              return null;
+            })()}
             {/* Profile Info */}
             <div>
               <h3 className="text-lg font-semibold text-white mb-4">Profile Information</h3>

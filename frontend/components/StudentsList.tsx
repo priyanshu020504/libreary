@@ -36,6 +36,22 @@ export default function StudentsList({ onEdit, onRefresh }: { onEdit: (student: 
     fetchStudents();
   }, [search, page]);
 
+  // compute sorted list with expiring-first (within 5 days) and mark expiring
+  const processedStudents = students
+    .map((s) => {
+      const end = new Date(s.membership_end_date);
+      const now = new Date();
+      const diffMs = end.getTime() - now.getTime();
+      const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      return { ...s, __daysRemaining: daysRemaining, __expiringSoon: daysRemaining <= 5 && daysRemaining >= 0 };
+    })
+    .sort((a, b) => {
+      // expiring soon first, then by created_at (server order preserved otherwise)
+      if (a.__expiringSoon && !b.__expiringSoon) return -1;
+      if (!a.__expiringSoon && b.__expiringSoon) return 1;
+      return 0;
+    });
+
   const fetchStudents = async () => {
     try {
       setLoading(true);
@@ -108,8 +124,8 @@ export default function StudentsList({ onEdit, onRefresh }: { onEdit: (student: 
                 </tr>
               </thead>
               <tbody>
-                {students.map((student) => (
-                  <tr key={student.id} className="border-b hover:bg-gray-50">
+                {processedStudents.map((student) => (
+                  <tr key={student.id} className={`border-b hover:bg-gray-50 ${student.__expiringSoon ? 'bg-red-50 border-red-200' : ''}`}>
                     <td className="py-3 px-4 text-gray-900 font-medium">{student.name}</td>
                     <td className="py-3 px-4 text-gray-600">{student.mobile}</td>
                     <td className="py-3 px-4 text-gray-600">{student.parent_mobile || '-'}</td>
@@ -129,6 +145,9 @@ export default function StudentsList({ onEdit, onRefresh }: { onEdit: (student: 
                     </td>
                     <td className="py-3 px-4 text-gray-600">
                       {format(new Date(student.membership_end_date), 'dd MMM yyyy')}
+                      {student.__expiringSoon && (
+                        <div className="text-sm text-red-600 font-semibold">Expires in {student.__daysRemaining}d</div>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">

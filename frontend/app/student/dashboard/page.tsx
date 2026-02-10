@@ -111,17 +111,27 @@ export default function StudentDashboard() {
         {/* Library Expired / Remaining Payment Banner */}
         {student && stats && (() => {
           const endDate = new Date(student.membership_end_date);
-          const isExpired = endDate < new Date();
+          const now = new Date();
+          const diffMs = endDate.getTime() - now.getTime();
+          const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          const isExpired = endDate < now;
+          const expiringSoon = !isExpired && daysRemaining <= 5;
           const hasRemaining = stats.remaining > 0;
-          if (!isExpired && !hasRemaining) return null;
+          if (!isExpired && !hasRemaining && !expiringSoon) return null;
+
           return (
-            <div className={`rounded-xl shadow-lg p-6 mb-6 ${isExpired ? 'bg-red-900/30 border-2 border-red-700' : 'bg-amber-900/30 border-2 border-amber-700'}`}>
+            <div className={`rounded-xl shadow-lg p-6 mb-6 ${isExpired ? 'bg-red-900/30 border-2 border-red-700' : expiringSoon ? 'bg-red-900/10 border-2 border-red-700' : 'bg-amber-900/30 border-2 border-amber-700'}`}>
               <h2 className="text-xl font-semibold text-white mb-2">
-                {isExpired ? 'Library membership expired' : 'Remaining payment due'}
+                {isExpired ? 'Library membership expired' : expiringSoon ? 'Membership expiring soon' : 'Remaining payment due'}
               </h2>
               {isExpired && (
                 <p className="text-red-300 font-medium mb-2">
                   Your library membership has expired. Please contact admin to renew and clear dues.
+                </p>
+              )}
+              {expiringSoon && (
+                <p className="text-yellow-200 font-medium mb-2">
+                  Your membership will expire in {daysRemaining} day{daysRemaining !== 1 ? 's' : ''}.
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-4">

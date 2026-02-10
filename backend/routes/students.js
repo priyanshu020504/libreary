@@ -141,9 +141,20 @@ router.post('/', authenticateAdmin, [
             return res.status(500).json({ error: 'Error hashing password' });
           }
 
+          // Parse timing into start_time and end_time if possible (format: "HH:MM - HH:MM" or any string)
+          let start_time = null;
+          let end_time = null;
+          if (typeof timing === 'string' && timing.includes('-')) {
+            const parts = timing.split('-').map((p) => p.trim());
+            if (parts.length >= 2) {
+              start_time = parts[0];
+              end_time = parts[1];
+            }
+          }
+
           db.run(
-            'INSERT INTO students (name, mobile, parent_mobile, address, batch, timing, password, membership_start_date, membership_end_date, monthly_due_date, paid_amount, pending_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)',
-            [name, mobile, parent_mobile, address, batch, timing, hashedPassword, membership_start_date, membership_end_date, monthly_due_date],
+            'INSERT INTO students (name, mobile, parent_mobile, address, batch, timing, start_time, end_time, password, membership_start_date, membership_end_date, monthly_due_date, paid_amount, pending_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)',
+            [name, mobile, parent_mobile, address, batch, timing, start_time, end_time, hashedPassword, membership_start_date, membership_end_date, monthly_due_date],
             function(err) {
               if (err) {
                 return res.status(500).json({ error: 'Error creating student' });
@@ -175,7 +186,7 @@ router.put('/:id', authenticateAdmin, [
   body('parent_mobile').optional().isMobilePhone('en-IN').withMessage('Invalid parent mobile number'),
   body('address').optional().trim().isLength({ min: 10 }).withMessage('Address must be at least 10 characters'),
   body('batch').optional().isIn(['morning', 'afternoon', 'evening']).withMessage('Batch must be morning/afternoon/evening'),
-  body('seat_number').optional().isInt({ min: 1, max: 92 }).withMessage('Seat number must be between 1-92'),
+  // seat_number: allow any value (no uniqueness or strict range validation)
   body('membership_start_date').optional().notEmpty().withMessage('Membership start date cannot be empty'),
   body('membership_end_date').optional().notEmpty().withMessage('Membership end date cannot be empty'),
   body('monthly_due_date').optional().isInt({ min: 1, max: 31 }).withMessage('Monthly due date must be between 1-31'),
@@ -241,32 +252,16 @@ router.put('/:id', authenticateAdmin, [
       }
       
       function validateSeatAndUpdate() {
-        // If seat_number is being set, check for duplicates in target batch
-        if (updates.seat_number !== undefined && targetSeatNumber !== null) {
-          db.get('SELECT id FROM students WHERE batch = ? AND seat_number = ? AND id != ?', 
-            [targetBatch, targetSeatNumber, id], (err2, existing) => {
-            if (err2) return res.status(500).json({ error: 'Database error' });
-            if (existing) {
-              return res.status(400).json({ error: `Seat number ${targetSeatNumber} is already assigned to another student in ${targetBatch} batch` });
-            }
-            
-            if (updates.batch) fields.push('batch = ?');
-            if (updates.seat_number !== undefined) fields.push('seat_number = ?');
-            if (updates.batch) values.push(targetBatch);
-            if (updates.seat_number !== undefined) values.push(targetSeatNumber);
-            processRemainingFields();
-          });
-        } else {
-          if (updates.batch) {
-            fields.push('batch = ?');
-            values.push(targetBatch);
-          }
-          if (updates.seat_number !== undefined) {
-            fields.push('seat_number = ?');
-            values.push(targetSeatNumber);
-          }
-          processRemainingFields();
+        // Allow any seat number and duplicates; just set provided values
+        if (updates.batch) {
+          fields.push('batch = ?');
+          values.push(targetBatch);
         }
+        if (updates.seat_number !== undefined) {
+          fields.push('seat_number = ?');
+          values.push(targetSeatNumber);
+        }
+        processRemainingFields();
       }
     });
     return;

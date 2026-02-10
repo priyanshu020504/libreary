@@ -57,6 +57,15 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
         updateData.password = formData.password;
       }
 
+      // parse timing into start_time and end_time (if provided)
+      if (typeof updateData.timing === 'string' && updateData.timing.includes('-')) {
+        const parts = updateData.timing.split('-').map((p: string) => p.trim());
+        if (parts.length >= 2) {
+          updateData.start_time = parts[0];
+          updateData.end_time = parts[1];
+        }
+      }
+
       await api.put(`/api/students/${student.id}`, updateData);
       toast.success('Student updated successfully');
       onSuccess();
@@ -142,16 +151,24 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Timing *</label>
-              <select
+              <input
+                type="text"
+                placeholder="e.g. 09:00 - 10:00 or Any descriptive text"
                 value={(formData as any).timing}
                 onChange={(e) => setFormData({ ...(formData as any), timing: e.target.value } as any)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white"
                 required
-              >
-                <option value="09:00 - 10:00">09:00 – 10:00</option>
-                <option value="10:00 - 11:00">10:00 – 11:00</option>
-                <option value="14:30 - 17:30">14:30 – 17:30</option>
-              </select>
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Seat Number</label>
+              <input
+                type="text"
+                placeholder="Any seat number"
+                value={(formData as any).seat_number}
+                onChange={(e) => setFormData({ ...(formData as any), seat_number: e.target.value } as any)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              />
             </div>
           </div>
 

@@ -55,9 +55,21 @@ function ensureStudentsColumns() {
     }
 
     if (!cols.has('timing')) {
-      db.run(`ALTER TABLE students ADD COLUMN timing TEXT`, (e) => {
-        if (e) console.error('Error adding timing column:', e);
-      });
+        db.run(`ALTER TABLE students ADD COLUMN timing TEXT`, (e) => {
+          if (e) console.error('Error adding timing column:', e);
+        });
+      }
+
+      if (!cols.has('start_time')) {
+        db.run(`ALTER TABLE students ADD COLUMN start_time TEXT`, (e) => {
+          if (e) console.error('Error adding start_time column:', e);
+        });
+      }
+
+      if (!cols.has('end_time')) {
+        db.run(`ALTER TABLE students ADD COLUMN end_time TEXT`, (e) => {
+          if (e) console.error('Error adding end_time column:', e);
+        });
     }
   });
 }
@@ -94,6 +106,8 @@ db.serialize(() => {
     address TEXT,
     batch TEXT,
     timing TEXT,
+    start_time TEXT,
+    end_time TEXT,
     password TEXT NOT NULL,
     membership_start_date TEXT NOT NULL,
     membership_end_date TEXT NOT NULL,

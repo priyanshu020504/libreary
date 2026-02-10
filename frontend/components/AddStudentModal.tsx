@@ -12,6 +12,7 @@ export default function AddStudentModal({ onClose, onSuccess }: { onClose: () =>
     address: '',
     batch: 'morning',
     timing: '09:00 - 10:00',
+    seat_number: '',
     password: '',
     membership_start_date: '',
     membership_end_date: '',
@@ -24,7 +25,22 @@ export default function AddStudentModal({ onClose, onSuccess }: { onClose: () =>
     setLoading(true);
 
     try {
-      await api.post('/api/students', formData);
+      const payload: any = { ...formData };
+      if (typeof payload.timing === 'string' && payload.timing.includes('-')) {
+        const parts = payload.timing.split('-').map((p: string) => p.trim());
+        if (parts.length >= 2) {
+          payload.start_time = parts[0];
+          payload.end_time = parts[1];
+        }
+      }
+      if (payload.seat_number === '') {
+        delete payload.seat_number;
+      } else {
+        const n = parseInt(payload.seat_number);
+        if (!Number.isNaN(n)) payload.seat_number = n;
+      }
+
+      await api.post('/api/students', payload);
       toast.success('Student added successfully');
       onSuccess();
     } catch (error: any) {
@@ -103,16 +119,24 @@ export default function AddStudentModal({ onClose, onSuccess }: { onClose: () =>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Timing *</label>
-              <select
+              <input
+                type="text"
+                placeholder="e.g. 09:00 - 10:00 or Any descriptive text"
                 value={(formData as any).timing}
                 onChange={(e) => setFormData({ ...(formData as any), timing: e.target.value } as any)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white"
                 required
-              >
-                <option value="09:00 - 10:00">09:00 – 10:00</option>
-                <option value="10:00 - 11:00">10:00 – 11:00</option>
-                <option value="14:30 - 17:30">14:30 – 17:30</option>
-              </select>
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Seat Number</label>
+              <input
+                type="text"
+                placeholder="Any seat number"
+                value={(formData as any).seat_number}
+                onChange={(e) => setFormData({ ...(formData as any), seat_number: e.target.value } as any)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              />
             </div>
           </div>
 
