@@ -77,7 +77,8 @@ router.get('/student/:studentId/stats', authenticateToken, (req, res) => {
           paidAmount,
           remaining,
           paidCount,
-          paymentStatus: remaining <= 0 ? 'paid' : 'pending',
+          // PAID only when paidAmount >= totalFee
+          paymentStatus: paidAmount >= totalFee ? 'paid' : 'pending',
           payments
         });
       }

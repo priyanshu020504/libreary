@@ -33,9 +33,10 @@ router.get('/', authenticateAdmin, (req, res) => {
       const paidAmount = Number(student.paid_amount || 0);
       const remaining = Math.max(0, totalFee - paidAmount);
 
+      // PAID only when paidAmount >= totalFee (strict rule)
       return {
         ...student,
-        paymentStatus: remaining <= 0 ? 'paid' : 'pending',
+        paymentStatus: paidAmount >= totalFee ? 'paid' : 'pending',
         totalFee,
         remaining,
       };
@@ -285,6 +286,16 @@ router.put('/:id', authenticateAdmin, [
     if (updates.timing) {
       fields.push('timing = ?');
       values.push(updates.timing);
+      // also store parsed start_time and end_time when possible
+      if (typeof updates.timing === 'string' && updates.timing.includes('-')) {
+        const parts = updates.timing.split('-').map((p) => p.trim());
+        if (parts.length >= 2) {
+          fields.push('start_time = ?');
+          values.push(parts[0]);
+          fields.push('end_time = ?');
+          values.push(parts[1]);
+        }
+      }
     }
     if (updates.password) {
       bcrypt.hash(updates.password, 10, (err, hashedPassword) => {
@@ -306,24 +317,56 @@ router.put('/:id', authenticateAdmin, [
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    values.push(id);
-    const query = `UPDATE students SET ${fields.join(', ')} WHERE id = ?`;
+    // First, fetch current student snapshot so we can validate/restore if needed
+    db.get('SELECT * FROM students WHERE id = ?', [id], (err, current) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!current) return res.status(404).json({ error: 'Student not found' });
 
-    db.run(query, values, function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Error updating student' });
-      }
+      values.push(id);
+      const query = `UPDATE students SET ${fields.join(', ')} WHERE id = ?`;
 
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'Student not found' });
-      }
-
-      db.get('SELECT * FROM students WHERE id = ?', [id], (err, student) => {
+      db.run(query, values, function(err) {
         if (err) {
-          return res.status(500).json({ error: 'Database error' });
+          return res.status(500).json({ error: 'Error updating student' });
         }
-        // Admin can see password hash
-        res.json(student);
+
+        if (this.changes === 0) {
+          return res.status(404).json({ error: 'Student not found' });
+        }
+
+        // Post-update: fetch updated record and ensure required fields weren't nulled-out.
+        db.get('SELECT * FROM students WHERE id = ?', [id], (err, student) => {
+          if (err) {
+            return res.status(500).json({ error: 'Database error' });
+          }
+
+          // Required fields that must exist
+          const required = ['name', 'mobile', 'password', 'batch'];
+          const missing = required.filter((f) => student[f] === null || student[f] === undefined || String(student[f]).trim() === '');
+
+          if (missing.length > 0) {
+            // restore those fields from `current` snapshot (prevent accidental destructive overwrite)
+            const restoreFields = [];
+            const restoreValues = [];
+            missing.forEach((f) => {
+              restoreFields.push(`${f} = ?`);
+              restoreValues.push(current[f]);
+            });
+            restoreValues.push(id);
+            const restoreQuery = `UPDATE students SET ${restoreFields.join(', ')} WHERE id = ?`;
+            db.run(restoreQuery, restoreValues, function(restoreErr) {
+              if (restoreErr) {
+                console.error('Failed to restore student fields:', restoreErr);
+                return res.status(500).json({ error: 'Update would have corrupted student; attempted automatic restore failed' });
+              }
+              return res.status(400).json({ error: `Update aborted: required fields missing (${missing.join(', ')}). Changes reverted.` });
+            });
+            return;
+          }
+
+          // Admin can see password hash
+          res.json(student);
+        });
       });
     });
   }

@@ -20,10 +20,11 @@ router.get('/dashboard', authenticateAdmin, (req, res) => {
       (err2, sums) => {
         if (err2) return res.status(500).json({ error: 'Database error' });
 
-        db.get(`SELECT COUNT(*) as paidStudents FROM students WHERE COALESCE(pending_amount, 0) <= 0`, (err3, paidCount) => {
+        // Count paid/pending based on strict rule: paid_amount >= MONTHLY_FEE
+        const MONTHLY_FEE = 400;
+        db.get(`SELECT COUNT(*) as paidStudents FROM students WHERE COALESCE(paid_amount, 0) >= ?`, [MONTHLY_FEE], (err3, paidCount) => {
           if (err3) return res.status(500).json({ error: 'Database error' });
-
-          db.get(`SELECT COUNT(*) as pendingStudents FROM students WHERE COALESCE(pending_amount, 0) > 0`, (err4, pendingCount) => {
+          db.get(`SELECT COUNT(*) as pendingStudents FROM students WHERE COALESCE(paid_amount, 0) < ?`, [MONTHLY_FEE], (err4, pendingCount) => {
             if (err4) return res.status(500).json({ error: 'Database error' });
 
             res.json({

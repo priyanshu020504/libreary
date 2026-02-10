@@ -50,7 +50,8 @@ function studentPaymentStatus(student) {
   const remaining = Math.max(0, totalFee - paidAmount);
   return {
     ...student,
-    paymentStatus: remaining <= 0 ? 'paid' : 'pending',
+    // PAID only when paidAmount >= totalFee
+    paymentStatus: paidAmount >= totalFee ? 'paid' : 'pending',
     totalFee,
     remaining,
   };
