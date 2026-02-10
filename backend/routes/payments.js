@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../database/db');
 const { authenticateToken, authenticateAdmin } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
+const { safeUpdateStudent } = require('../services/safeUpdateService');
 
 const MONTHLY_FEE = 400;
 

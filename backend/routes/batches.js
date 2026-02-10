@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../database/db');
 const { authenticateToken, authenticateAdmin } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
+const { safeUpdateStudent } = require('../services/safeUpdateService');
 
 function getBatchSummary(name, cb) {
   db.get(`SELECT name, total_seats FROM batches WHERE name = ?`, [name], (err, batch) => {
@@ -109,7 +110,7 @@ router.patch(
   }
 );
 
-// Admin: move student between batches (seat-safe)
+// Admin: move student between batches (seat-safe) - SAFE update
 router.patch(
   '/move-student',
   authenticateAdmin,
@@ -117,51 +118,49 @@ router.patch(
     body('student_id').isInt().withMessage('student_id is required'),
     body('batch').isIn(['morning', 'afternoon', 'evening']).withMessage('Batch must be morning/afternoon/evening'),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     const { student_id, batch } = req.body;
     console.log('[batches] move-student payload:', { student_id, batch });
-    db.serialize(() => {
-      db.run('BEGIN IMMEDIATE TRANSACTION');
-      db.get(`SELECT id, batch FROM students WHERE id = ?`, [student_id], (err, student) => {
-        if (err) {
-          db.run('ROLLBACK');
-          return res.status(500).json({ error: 'Database error' });
-        }
-        if (!student) {
-          db.run('ROLLBACK');
-          return res.status(404).json({ error: 'Student not found' });
-        }
-        if (student.batch === batch) {
-          db.run('ROLLBACK');
-          return res.status(400).json({ error: 'Student is already in this batch' });
-        }
 
-        getBatchSummary(batch, (err2, summary) => {
-          if (err2 || !summary) {
-            db.run('ROLLBACK');
-            return res.status(400).json({ error: 'Invalid batch' });
-          }
-          if (summary.available <= 0) {
-            db.run('ROLLBACK');
-            return res.status(400).json({ error: 'Selected batch is full' });
-          }
+    try {
+      // Check if student exists and get current batch
+      const student = await new Promise((resolve, reject) => {
+        db.get(`SELECT id, batch FROM students WHERE id = ?`, [student_id], (err, s) => {
+          if (err) reject(err);
+          else if (!s) reject(new Error('Student not found'));
+          else resolve(s);
+        });
+      });
 
-          const query = `UPDATE students SET batch = ? WHERE id = ?`;
-          console.log('[batches] executing SQL:', query, [batch, student_id]);
-          db.run(query, [batch, student_id], function (err3) {
-            if (err3) {
-              db.run('ROLLBACK');
-              return res.status(500).json({ error: 'Database error' });
-            }
-            db.run('COMMIT');
-            return res.json({ message: 'Student moved', batch });
+      if (student.batch === batch) {
+        return res.status(400).json({ error: 'Student is already in this batch' });
+      }
+
+      // Check if batch is valid and has space
+      const summary = await new Promise((resolve, reject) => {
+        db.get(`SELECT total_seats FROM batches WHERE name = ?`, [batch], (err, b) => {
+          if (err) return reject(err);
+          if (!b) return reject(new Error('Invalid batch'));
+          db.get(`SELECT COUNT(*) as filled FROM students WHERE batch = ?`, [batch], (err2, count) => {
+            if (err2) return reject(err2);
+            const filled = count?.filled || 0;
+            const available = Math.max(0, b.total_seats - filled);
+            if (available <= 0) return reject(new Error('Selected batch is full'));
+            resolve({ total: b.total_seats, filled, available });
           });
         });
       });
-    });
+
+      // Use safe update to move student
+      const updatedStudent = await safeUpdateStudent(student_id, { batch });
+      res.json({ message: 'Student moved safely', batch, student: updatedStudent });
+    } catch (error) {
+      console.error('[batches] move-student error:', error.message);
+      res.status(400).json({ error: error.message });
+    }
   }
 );
 

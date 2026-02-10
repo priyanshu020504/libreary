@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../database/db');
 const { authenticateToken, authenticateAdmin } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
+const { safeUpdateStudent, safeDeleteStudent } = require('../services/safeUpdateService');
 
 // Get all students (Admin only)
 router.get('/', authenticateAdmin, (req, res) => {
@@ -180,58 +181,23 @@ router.post('/', authenticateAdmin, [
   });
 });
 
-// Update student (Admin only) - safe partial update with strict field handling
-router.put('/:id', authenticateAdmin, (req, res) => {
+// Update student (Admin only) - SAFE update with transaction-like protection
+router.put('/:id', authenticateAdmin, async (req, res) => {
   const id = req.params.id;
 
-  // NEVER allow soft-delete fields in update
-  delete req.body.deleted_at;
-  delete req.body.is_active;
-  delete req.body.status;
-
-  const fields = [];
-  const values = [];
-
-  Object.keys(req.body).forEach((key) => {
-    if (req.body[key] !== undefined) {
-      fields.push(`${key} = ?`);
-      values.push(req.body[key]);
-    }
-  });
-
-  if (fields.length === 0) {
-    return res.status(400).json({ message: 'No valid fields to update' });
+  try {
+    const updatedStudent = await safeUpdateStudent(id, req.body);
+    res.json({ message: 'Student updated safely', student: updatedStudent });
+  } catch (error) {
+    console.error('[students] PUT /:id error:', error.message);
+    res.status(400).json({ error: error.message });
   }
-
-  values.push(id);
-
-  const sql = `UPDATE students SET ${fields.join(', ')} WHERE id = ?`;
-
-  // Log SQL for debugging
-  console.log('[students] executing SQL:', sql, values);
-
-  db.run(sql, values, function (err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'Student not found' });
-    }
-
-    db.get('SELECT * FROM students WHERE id = ?', [id], (err, student) => {
-      if (err) {
-        return res.status(500).json({ error: 'Database error' });
-      }
-      res.json({ message: 'Student updated safely', student });
-    });
-  });
 });
 
-// Update payment totals (Admin only) - DISPLAY ONLY, fixed monthly fee
+// Update payment totals (Admin only) - SAFE atomic update
 router.patch('/:id/payment-totals', authenticateAdmin, [
   body('paid_amount').isFloat({ min: 0, max: 400 }).withMessage('paid_amount must be between 0 and 400'),
-], (req, res) => {
+], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
@@ -240,41 +206,40 @@ router.patch('/:id/payment-totals', authenticateAdmin, [
   const { id } = req.params;
   const { paid_amount } = req.body;
 
-  const MONTHLY_FEE = 400;
-  const normalizedPaid = Math.min(Math.max(Number(paid_amount), 0), MONTHLY_FEE);
-  const remaining = Math.max(0, MONTHLY_FEE - normalizedPaid);
+  try {
+    const MONTHLY_FEE = 400;
+    const normalizedPaid = Math.min(Math.max(Number(paid_amount), 0), MONTHLY_FEE);
+    const remaining = Math.max(0, MONTHLY_FEE - normalizedPaid);
 
-  // Update paid_amount and pending_amount (remaining) atomically
-  db.run(`UPDATE students SET paid_amount = ?, pending_amount = ? WHERE id = ?`, [normalizedPaid, remaining, id], function (err) {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Student not found' });
-
-    return res.json({ message: 'Payment totals updated', paid_amount: normalizedPaid, remaining });
-  });
-});
-
-// Delete student (Admin only)
-router.delete('/:id', authenticateAdmin, (req, res) => {
-  const { id } = req.params;
-
-  db.run('DELETE FROM students WHERE id = ?', [id], function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Error deleting student' });
-    }
-
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'Student not found' });
-    }
-
-    // Also delete associated payments
-    db.run('DELETE FROM payments WHERE student_id = ?', [id], (err) => {
-      if (err) {
-        console.error('Error deleting payments:', err);
-      }
+    // Use safe update to modify payment fields
+    const updatedStudent = await safeUpdateStudent(id, {
+      paid_amount: normalizedPaid,
+      pending_amount: remaining
     });
 
-    res.json({ message: 'Student deleted successfully' });
-  });
+    return res.json({
+      message: 'Payment totals updated safely',
+      paid_amount: normalizedPaid,
+      remaining,
+      student: updatedStudent
+    });
+  } catch (error) {
+    console.error('[students] PATCH /:id/payment-totals error:', error.message);
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+// Delete student (Admin only) - SAFE delete with cascade
+router.delete('/:id', authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await safeDeleteStudent(id, true);
+    res.json(result);
+  } catch (error) {
+    console.error('[students] DELETE /:id error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;
