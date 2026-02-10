@@ -29,18 +29,15 @@ router.get('/', authenticateAdmin, (req, res) => {
     // Calculate payment status for each student
     const MONTHLY_FEE = 400;
     const studentsWithStatus = students.map((student) => {
-      const startDate = new Date(student.membership_start_date);
-      const endDate = new Date(student.membership_end_date);
-      const monthsDiff = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24 * 30)));
-      const totalFee = monthsDiff * MONTHLY_FEE;
+      const totalFee = MONTHLY_FEE;
       const paidAmount = Number(student.paid_amount || 0);
       const remaining = Math.max(0, totalFee - paidAmount);
-      
+
       return {
         ...student,
         paymentStatus: remaining <= 0 ? 'paid' : 'pending',
         totalFee,
-        remaining
+        remaining,
       };
     });
 
@@ -106,6 +103,7 @@ router.post('/', authenticateAdmin, [
   body('parent_mobile').isMobilePhone('en-IN').withMessage('Invalid parent mobile number'),
   body('address').trim().isLength({ min: 10 }).withMessage('Address must be at least 10 characters'),
   body('batch').isIn(['morning', 'afternoon', 'evening']).withMessage('Batch must be morning/afternoon/evening'),
+  body('timing').notEmpty().withMessage('Timing is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('membership_start_date').notEmpty().withMessage('Membership start date is required'),
   body('membership_end_date').notEmpty().withMessage('Membership end date is required'),
@@ -116,7 +114,7 @@ router.post('/', authenticateAdmin, [
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, mobile, parent_mobile, address, batch, password, membership_start_date, membership_end_date, monthly_due_date } = req.body;
+  const { name, mobile, parent_mobile, address, batch, timing, password, membership_start_date, membership_end_date, monthly_due_date } = req.body;
 
   // Check if mobile already exists
   db.get('SELECT id FROM students WHERE mobile = ?', [mobile], (err, existing) => {
@@ -144,8 +142,8 @@ router.post('/', authenticateAdmin, [
           }
 
           db.run(
-            'INSERT INTO students (name, mobile, parent_mobile, address, batch, password, membership_start_date, membership_end_date, monthly_due_date, paid_amount, pending_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)',
-            [name, mobile, parent_mobile, address, batch, hashedPassword, membership_start_date, membership_end_date, monthly_due_date],
+            'INSERT INTO students (name, mobile, parent_mobile, address, batch, timing, password, membership_start_date, membership_end_date, monthly_due_date, paid_amount, pending_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)',
+            [name, mobile, parent_mobile, address, batch, timing, hashedPassword, membership_start_date, membership_end_date, monthly_due_date],
             function(err) {
               if (err) {
                 return res.status(500).json({ error: 'Error creating student' });
@@ -170,7 +168,7 @@ router.post('/', authenticateAdmin, [
   });
 });
 
-// Update student (Admin only)
+// Update student (Admin only) - partial update only (safe $set-style)
 router.put('/:id', authenticateAdmin, [
   body('name').optional().notEmpty().withMessage('Name cannot be empty'),
   body('mobile').optional().isMobilePhone('en-IN').withMessage('Invalid mobile number'),
@@ -180,7 +178,8 @@ router.put('/:id', authenticateAdmin, [
   body('seat_number').optional().isInt({ min: 1, max: 92 }).withMessage('Seat number must be between 1-92'),
   body('membership_start_date').optional().notEmpty().withMessage('Membership start date cannot be empty'),
   body('membership_end_date').optional().notEmpty().withMessage('Membership end date cannot be empty'),
-  body('monthly_due_date').optional().isInt({ min: 1, max: 31 }).withMessage('Monthly due date must be between 1-31')
+  body('monthly_due_date').optional().isInt({ min: 1, max: 31 }).withMessage('Monthly due date must be between 1-31'),
+  body('timing').optional().notEmpty().withMessage('Timing cannot be empty'),
 ], (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -190,7 +189,7 @@ router.put('/:id', authenticateAdmin, [
   const { id } = req.params;
   const updates = req.body;
 
-  // Build dynamic update query
+  // Build dynamic update query (partial update / $set semantics)
   const fields = [];
   const values = [];
 
@@ -288,6 +287,10 @@ router.put('/:id', authenticateAdmin, [
       fields.push('monthly_due_date = ?');
       values.push(updates.monthly_due_date);
     }
+    if (updates.timing) {
+      fields.push('timing = ?');
+      values.push(updates.timing);
+    }
     if (updates.password) {
       bcrypt.hash(updates.password, 10, (err, hashedPassword) => {
         if (err) {
@@ -331,9 +334,9 @@ router.put('/:id', authenticateAdmin, [
   }
 });
 
-// Update payment totals (Admin only) - DISPLAY ONLY
+// Update payment totals (Admin only) - DISPLAY ONLY, fixed monthly fee
 router.patch('/:id/payment-totals', authenticateAdmin, [
-  body('paid_amount').isFloat({ min: 0 }).withMessage('paid_amount must be >= 0'),
+  body('paid_amount').isFloat({ min: 0, max: 400 }).withMessage('paid_amount must be between 0 and 400'),
 ], (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -343,15 +346,16 @@ router.patch('/:id/payment-totals', authenticateAdmin, [
   const { id } = req.params;
   const { paid_amount } = req.body;
 
-  // Update paid_amount only, remaining is calculated automatically
-  db.run(`UPDATE students SET paid_amount = ? WHERE id = ?`, [paid_amount, id], function (err) {
+  const MONTHLY_FEE = 400;
+  const normalizedPaid = Math.min(Math.max(Number(paid_amount), 0), MONTHLY_FEE);
+  const remaining = Math.max(0, MONTHLY_FEE - normalizedPaid);
+
+  // Update paid_amount and pending_amount (remaining) atomically
+  db.run(`UPDATE students SET paid_amount = ?, pending_amount = ? WHERE id = ?`, [normalizedPaid, remaining, id], function (err) {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (this.changes === 0) return res.status(404).json({ error: 'Student not found' });
-    
-    // Also clear pending_amount since we calculate it dynamically
-    db.run(`UPDATE students SET pending_amount = 0 WHERE id = ?`, [id], () => {});
-    
-    return res.json({ message: 'Payment totals updated' });
+
+    return res.json({ message: 'Payment totals updated', paid_amount: normalizedPaid, remaining });
   });
 });
 

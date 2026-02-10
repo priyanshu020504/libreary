@@ -69,6 +69,10 @@ export default function StudentDetailModal({ student, onClose, onRefresh }: { st
                   <p className="text-lg font-medium text-white">{student.batch ? `${student.batch} batch` : '-'}</p>
                 </div>
                 <div>
+              <p className="text-sm text-gray-400">Timing</p>
+              <p className="text-lg font-medium text-white">{student.timing || '-'}</p>
+            </div>
+            <div>
                   <p className="text-sm text-gray-400">Seat Number</p>
                   <p className="text-lg font-medium text-indigo-400">{student.seat_number ? `Seat ${student.seat_number}` : 'Not assigned'}</p>
                 </div>

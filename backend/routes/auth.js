@@ -34,12 +34,13 @@ router.post(
     body('address').trim().isLength({ min: 10 }).withMessage('Address must be at least 10 characters'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('batch').isIn(['morning', 'afternoon', 'evening']).withMessage('Batch must be morning/afternoon/evening'),
+    body('timing').trim().notEmpty().withMessage('Timing is required'),
   ],
   (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { name, mobile, parent_mobile, address, password, batch } = req.body;
+    const { name, mobile, parent_mobile, address, password, batch, timing } = req.body;
 
     db.get('SELECT id FROM students WHERE mobile = ?', [mobile], (err, existing) => {
       if (err) return res.status(500).json({ error: 'Database error' });
@@ -58,9 +59,9 @@ router.post(
           const monthlyDueDate = 1;
 
           db.run(
-            `INSERT INTO students (name, mobile, parent_mobile, address, batch, password, membership_start_date, membership_end_date, monthly_due_date, paid_amount, pending_amount)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
-            [name, mobile, parent_mobile, address, batch, hashedPassword, startDate, endDate, monthlyDueDate],
+            `INSERT INTO students (name, mobile, parent_mobile, address, batch, timing, password, membership_start_date, membership_end_date, monthly_due_date, paid_amount, pending_amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
+            [name, mobile, parent_mobile, address, batch, timing, hashedPassword, startDate, endDate, monthlyDueDate],
             function (insertErr) {
               if (insertErr) {
                 if (String(insertErr.message || '').toLowerCase().includes('unique')) {

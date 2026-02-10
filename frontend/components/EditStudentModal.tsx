@@ -11,6 +11,7 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
     parent_mobile: student.parent_mobile || '',
     address: student.address || '',
     batch: student.batch || 'morning',
+    timing: student.timing || '09:00 - 10:00',
     seat_number: student.seat_number || '',
     password: '',
     membership_start_date: String(student.membership_start_date).slice(0, 10),
@@ -42,6 +43,7 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
         parent_mobile: (formData as any).parent_mobile,
         address: (formData as any).address,
         batch: (formData as any).batch,
+        timing: (formData as any).timing,
         membership_start_date: formData.membership_start_date,
         membership_end_date: formData.membership_end_date,
         monthly_due_date: parseInt(formData.monthly_due_date),
@@ -139,17 +141,17 @@ export default function EditStudentModal({ student, onClose, onSuccess }: { stud
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Seat Number (1-92)</label>
-              <input
-                type="number"
-                min="1"
-                max="92"
-                value={(formData as any).seat_number}
-                onChange={(e) => setFormData({ ...(formData as any), seat_number: e.target.value } as any)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                placeholder="Optional"
-              />
-              <p className="text-xs text-gray-500 mt-1">Must be unique within the batch</p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Timing *</label>
+              <select
+                value={(formData as any).timing}
+                onChange={(e) => setFormData({ ...(formData as any), timing: e.target.value } as any)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white"
+                required
+              >
+                <option value="09:00 - 10:00">09:00 – 10:00</option>
+                <option value="10:00 - 11:00">10:00 – 11:00</option>
+                <option value="14:30 - 17:30">14:30 – 17:30</option>
+              </select>
             </div>
           </div>
 

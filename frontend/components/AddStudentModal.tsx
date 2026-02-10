@@ -11,6 +11,7 @@ export default function AddStudentModal({ onClose, onSuccess }: { onClose: () =>
     parent_mobile: '',
     address: '',
     batch: 'morning',
+    timing: '09:00 - 10:00',
     password: '',
     membership_start_date: '',
     membership_end_date: '',
@@ -86,18 +87,33 @@ export default function AddStudentModal({ onClose, onSuccess }: { onClose: () =>
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Batch *</label>
-            <select
-              value={(formData as any).batch}
-              onChange={(e) => setFormData({ ...(formData as any), batch: e.target.value } as any)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white"
-              required
-            >
-              <option value="morning">Morning</option>
-              <option value="afternoon">Afternoon</option>
-              <option value="evening">Evening</option>
-            </select>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Batch *</label>
+              <select
+                value={(formData as any).batch}
+                onChange={(e) => setFormData({ ...(formData as any), batch: e.target.value } as any)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white"
+                required
+              >
+                <option value="morning">Morning</option>
+                <option value="afternoon">Afternoon</option>
+                <option value="evening">Evening</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Timing *</label>
+              <select
+                value={(formData as any).timing}
+                onChange={(e) => setFormData({ ...(formData as any), timing: e.target.value } as any)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white"
+                required
+              >
+                <option value="09:00 - 10:00">09:00 – 10:00</option>
+                <option value="10:00 - 11:00">10:00 – 11:00</option>
+                <option value="14:30 - 17:30">14:30 – 17:30</option>
+              </select>
+            </div>
           </div>
 
           <div>

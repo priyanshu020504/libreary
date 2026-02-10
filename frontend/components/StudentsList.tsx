@@ -14,6 +14,7 @@ interface Student {
   parent_mobile?: string;
   address?: string;
   batch?: string;
+  timing?: string;
   membership_start_date: string;
   membership_end_date: string;
   monthly_due_date: number;
@@ -99,6 +100,7 @@ export default function StudentsList({ onEdit, onRefresh }: { onEdit: (student: 
                   <th className="text-left py-3 px-4 text-gray-700 font-semibold">Mobile</th>
                   <th className="text-left py-3 px-4 text-gray-700 font-semibold">Parent Mobile</th>
                   <th className="text-left py-3 px-4 text-gray-700 font-semibold">Batch</th>
+                  <th className="text-left py-3 px-4 text-gray-700 font-semibold">Timing</th>
                   <th className="text-left py-3 px-4 text-gray-700 font-semibold">Payment Status</th>
                   <th className="text-left py-3 px-4 text-gray-700 font-semibold">Start Date</th>
                   <th className="text-left py-3 px-4 text-gray-700 font-semibold">End Date</th>
@@ -112,6 +114,7 @@ export default function StudentsList({ onEdit, onRefresh }: { onEdit: (student: 
                     <td className="py-3 px-4 text-gray-600">{student.mobile}</td>
                     <td className="py-3 px-4 text-gray-600">{student.parent_mobile || '-'}</td>
                     <td className="py-3 px-4 text-gray-600">{student.batch ? `${student.batch.charAt(0).toUpperCase() + student.batch.slice(1)}` : '-'}</td>
+                    <td className="py-3 px-4 text-gray-600">{student.timing || '-'}</td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         student.paymentStatus === 'paid' 

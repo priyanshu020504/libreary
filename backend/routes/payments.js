@@ -59,11 +59,8 @@ router.get('/student/:studentId/stats', authenticateToken, (req, res) => {
         }
 
         // DISPLAY ONLY totals:
-        // Fixed total fee calculation based on membership duration
-        const startDate = new Date(student.membership_start_date);
-        const endDate = new Date(student.membership_end_date);
-        const monthsDiff = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24 * 30)));
-        const totalFee = monthsDiff * MONTHLY_FEE;
+        // Fixed monthly fee: 400, remaining = totalFee - paidAmount
+        const totalFee = MONTHLY_FEE;
 
         // Admin manually sets paid_amount, remaining is calculated
         const paidAmount = Number(student.paid_amount || 0);

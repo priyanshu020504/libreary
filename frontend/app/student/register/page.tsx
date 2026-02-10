@@ -17,6 +17,7 @@ export default function StudentRegister() {
     address: '',
     password: '',
     batch: 'morning',
+    timing: '09:00 - 10:00',
   });
 
   useEffect(() => {
@@ -93,23 +94,38 @@ export default function StudentRegister() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Batch *</label>
-            <select
-              value={formData.batch}
-              onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition bg-white"
-              required
-            >
-              <option value="morning">Morning Batch</option>
-              <option value="afternoon">Afternoon Batch</option>
-              <option value="evening">Evening Batch</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-2">
-              {selectedBatch
-                ? `Seats: ${selectedBatch.total_seats} | Filled: ${selectedBatch.filled} | Available: ${selectedBatch.available}`
-                : 'Seats: 92 per batch'}
-            </p>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Batch *</label>
+              <select
+                value={formData.batch}
+                onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition bg-white"
+                required
+              >
+                <option value="morning">Morning Batch</option>
+                <option value="afternoon">Afternoon Batch</option>
+                <option value="evening">Evening Batch</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-2">
+                {selectedBatch
+                  ? `Seats: ${selectedBatch.total_seats} | Filled: ${selectedBatch.filled} | Available: ${selectedBatch.available}`
+                  : 'Seats: 92 per batch'}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Timing *</label>
+              <select
+                value={formData.timing}
+                onChange={(e) => setFormData({ ...formData, timing: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition bg-white"
+                required
+              >
+                <option value="09:00 - 10:00">09:00 – 10:00</option>
+                <option value="10:00 - 11:00">10:00 – 11:00</option>
+                <option value="14:30 - 17:30">14:30 – 17:30</option>
+              </select>
+            </div>
           </div>
 
           <div>

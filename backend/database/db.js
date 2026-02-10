@@ -53,6 +53,12 @@ function ensureStudentsColumns() {
         if (e) console.error('Error adding seat_number column:', e);
       });
     }
+
+    if (!cols.has('timing')) {
+      db.run(`ALTER TABLE students ADD COLUMN timing TEXT`, (e) => {
+        if (e) console.error('Error adding timing column:', e);
+      });
+    }
   });
 }
 
@@ -87,6 +93,7 @@ db.serialize(() => {
     parent_mobile TEXT,
     address TEXT,
     batch TEXT,
+    timing TEXT,
     password TEXT NOT NULL,
     membership_start_date TEXT NOT NULL,
     membership_end_date TEXT NOT NULL,

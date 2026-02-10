@@ -8,7 +8,7 @@ export default function PaymentModal({ student, onClose, onSuccess }: { student:
   const [formData, setFormData] = useState({
     paid_amount: '0',
   });
-  const [totalFee, setTotalFee] = useState(0);
+  const [totalFee, setTotalFee] = useState(400);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -16,14 +16,8 @@ export default function PaymentModal({ student, onClose, onSuccess }: { student:
     setFormData({
       paid_amount: String(student.paid_amount ?? 0),
     });
-    
-    // Calculate total fee based on membership duration
-    if (student.membership_start_date && student.membership_end_date) {
-      const startDate = new Date(student.membership_start_date);
-      const endDate = new Date(student.membership_end_date);
-      const monthsDiff = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)));
-      setTotalFee(monthsDiff * 400); // MONTHLY_FEE = 400
-    }
+    // Fixed monthly membership fee
+    setTotalFee(400);
   }, [student]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,8 +50,8 @@ export default function PaymentModal({ student, onClose, onSuccess }: { student:
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-            <p className="text-sm text-blue-900 font-medium">Total Library Fee: ₹{totalFee.toFixed(2)}</p>
-            <p className="text-xs text-blue-700 mt-1">Calculated based on membership duration</p>
+            <p className="text-sm text-blue-900 font-medium">Monthly Membership Fee: ₹{totalFee.toFixed(2)}</p>
+            <p className="text-xs text-blue-700 mt-1">Fixed monthly fee (cannot be changed)</p>
           </div>
 
           <div>
