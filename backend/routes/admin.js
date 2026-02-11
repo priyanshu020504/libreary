@@ -1,44 +1,48 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database/db');
+const { Student } = require('../database/models');
 const { authenticateAdmin } = require('../middleware/auth');
 
+const MONTHLY_FEE = 400;
+
 // Get dashboard statistics
-router.get('/dashboard', authenticateAdmin, (req, res) => {
-  // Get total students
-  db.get('SELECT COUNT(*) as total FROM students', (err, studentsResult) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
-    }
+router.get('/dashboard', authenticateAdmin, async (req, res) => {
+  try {
+    // Get total students
+    const totalStudents = await Student.countDocuments();
 
-    // DISPLAY ONLY totals: revenue = sum(paid_amount), pending = sum(pending_amount)
-    db.get(
-      `SELECT 
-         COALESCE(SUM(paid_amount), 0) as totalRevenue,
-         COALESCE(SUM(pending_amount), 0) as totalPending
-       FROM students`,
-      (err2, sums) => {
-        if (err2) return res.status(500).json({ error: 'Database error' });
+    // Get payment statistics  
+    const students = await Student.find().lean();
+    let totalRevenue = 0;
+    let totalPending = 0;
+    let paidStudents = 0;
+    let pendingStudents = 0;
 
-        // Count paid/pending based on strict rule: paid_amount >= MONTHLY_FEE
-        const MONTHLY_FEE = 400;
-        db.get(`SELECT COUNT(*) as paidStudents FROM students WHERE COALESCE(paid_amount, 0) >= ?`, [MONTHLY_FEE], (err3, paidCount) => {
-          if (err3) return res.status(500).json({ error: 'Database error' });
-          db.get(`SELECT COUNT(*) as pendingStudents FROM students WHERE COALESCE(paid_amount, 0) < ?`, [MONTHLY_FEE], (err4, pendingCount) => {
-            if (err4) return res.status(500).json({ error: 'Database error' });
-
-            res.json({
-              totalStudents: studentsResult.total,
-              totalRevenue: sums.totalRevenue || 0,
-              totalPending: sums.totalPending || 0,
-              paidStudents: paidCount.paidStudents || 0,
-              pendingStudents: pendingCount.pendingStudents || 0
-            });
-          });
-        });
+    students.forEach(student => {
+      const paidAmount = Number(student.paid_amount || 0);
+      totalRevenue += paidAmount;
+      totalPending += Number(student.pending_amount || 0);
+      
+      if (paidAmount >= MONTHLY_FEE) {
+        paidStudents += 1;
+      } else {
+        pendingStudents += 1;
       }
-    );
-  });
+    });
+
+    console.log('[admin] GET /dashboard success', { totalStudents, paidStudents, pendingStudents });
+
+    res.json({
+      totalStudents,
+      totalRevenue,
+      totalPending,
+      paidStudents,
+      pendingStudents
+    });
+  } catch (error) {
+    console.error('[admin] GET /dashboard error:', error.message);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 module.exports = router;

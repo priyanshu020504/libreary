@@ -2,13 +2,33 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+// Import database connection
+const { connectToDatabase } = require('./database/mongodb');
+
 // JWT fallback so auth works; set JWT_SECRET in Vercel env for production security
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = process.env.VERCEL ? 'vercel-production-secret-change-in-dashboard' : 'dev-secret-change-in-production';
 }
 
+// Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Connect to MongoDB on startup
+let mongoConnected = false;
+connectToDatabase()
+  .then(() => {
+    mongoConnected = true;
+    console.log('[Server] ✅ MongoDB connected and ready');
+  })
+  .catch(err => {
+    console.error('[Server] ⚠️  MongoDB connection failed on startup:', err.message);
+    // In production, this is fatal. In development, we might retry.
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+      console.error('[Server] FATAL: Cannot start server without MongoDB in production');
+      process.exit(1);
+    }
+  });
 
 // CORS: allow Vercel frontend in production; allow all in development
 const allowedOrigins = ['https://libreary-2fno.vercel.app', /^https:\/\/.*\.vercel\.app$/];

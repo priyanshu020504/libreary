@@ -1,81 +1,73 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database/db');
+const { Student, Batch } = require('../database/models');
 const { authenticateToken, authenticateAdmin } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
-const { safeUpdateStudent } = require('../services/safeUpdateService');
-
-function getBatchSummary(name, cb) {
-  db.get(`SELECT name, total_seats FROM batches WHERE name = ?`, [name], (err, batch) => {
-    if (err) return cb(err);
-    if (!batch) return cb(null, null);
-    db.get(`SELECT COUNT(*) as filled FROM students WHERE batch = ?`, [name], (err2, count) => {
-      if (err2) return cb(err2);
-      const filled = count?.filled || 0;
-      const available = Math.max(0, batch.total_seats - filled);
-      cb(null, { ...batch, filled, available });
-    });
-  });
-}
-
-// Public: list all batches with seat availability
-router.get('/', (req, res) => {
-  db.all(`SELECT name, total_seats FROM batches ORDER BY id ASC`, (err, batches) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    const names = (batches || []).map((b) => b.name);
-    const results = [];
-    let pending = names.length;
-    if (pending === 0) return res.json([]);
-    names.forEach((name) => {
-      getBatchSummary(name, (e, summary) => {
-        if (!e && summary) results.push(summary);
-        pending -= 1;
-        if (pending === 0) {
-          // preserve order
-          const ordered = names.map((n) => results.find((r) => r.name === n)).filter(Boolean);
-          res.json(ordered);
-        }
-      });
-    });
-  });
-});
+const { safeUpdateStudent } = require('../services/mongoSafeUpdate');
 
 const MONTHLY_FEE = 400;
 
+async function getBatchSummary(name) {
+  const batch = await Batch.findOne({ name });
+  if (!batch) return null;
+  
+  const filled = await Student.countDocuments({ batch: name });
+  const available = Math.max(0, batch.total_seats - filled);
+  
+  return { name: batch.name, total_seats: batch.total_seats, filled, available };
+}
+
 function studentPaymentStatus(student) {
-  const startDate = new Date(student.membership_start_date);
-  const endDate = new Date(student.membership_end_date);
-  const monthsDiff = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24 * 30)));
-  const totalFee = monthsDiff * MONTHLY_FEE;
   const paidAmount = Number(student.paid_amount || 0);
-  const remaining = Math.max(0, totalFee - paidAmount);
   return {
     ...student,
-    // PAID only when paidAmount >= totalFee
-    paymentStatus: paidAmount >= totalFee ? 'paid' : 'pending',
-    totalFee,
-    remaining,
+    paymentStatus: paidAmount >= MONTHLY_FEE ? 'paid' : 'pending',
+    totalFee: MONTHLY_FEE,
+    remaining: Math.max(0, MONTHLY_FEE - paidAmount),
   };
 }
 
-// Admin: get one batch + students in it (full details + payment status)
-router.get('/:name', authenticateAdmin, (req, res) => {
-  const { name } = req.params;
-  getBatchSummary(name, (err, summary) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (!summary) return res.status(404).json({ error: 'Batch not found' });
+// Public: list all batches with seat availability
+router.get('/', async (req, res) => {
+  try {
+    const batches = await Batch.find().sort({ _id: 1 }).lean();
+    const batchNames = batches.map(b => b.name);
+    
+    const results = [];
+    for (const name of batchNames) {
+      const summary = await getBatchSummary(name);
+      if (summary) results.push(summary);
+    }
+    
+    res.json(results);
+  } catch (error) {
+    console.error('[batches] GET / error:', error.message);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
 
-    db.all(
-      `SELECT id, name, mobile, parent_mobile, address, batch, membership_start_date, membership_end_date, monthly_due_date, paid_amount, pending_amount, created_at
-       FROM students WHERE batch = ? ORDER BY created_at DESC`,
-      [name],
-      (err2, students) => {
-        if (err2) return res.status(500).json({ error: 'Database error' });
-        const studentsWithStatus = (students || []).map(studentPaymentStatus);
-        res.json({ batch: summary, students: studentsWithStatus });
-      }
-    );
-  });
+// Admin: get one batch + students in it (full details + payment status)
+router.get('/:name', authenticateAdmin, async (req, res) => {
+  try {
+    const { name } = req.params;
+    const summary = await getBatchSummary(name);
+    
+    if (!summary) {
+      return res.status(404).json({ error: 'Batch not found' });
+    }
+
+    const students = await Student.find({ batch: name })
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    const studentsWithStatus = students.map(studentPaymentStatus);
+    
+    res.json({ batch: summary, students: studentsWithStatus });
+  } catch (error) {
+    console.error('[batches] GET /:name error:', error.message);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // Admin: update batch seat capacity
@@ -83,27 +75,44 @@ router.put(
   '/:name',
   authenticateAdmin,
   [body('total_seats').isInt({ min: 0 }).withMessage('total_seats must be >= 0')],
-  (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
-    const { name } = req.params;
-    const { total_seats } = req.body;
-    db.run(`UPDATE batches SET total_seats = ? WHERE name = ?`, [total_seats, name], function (err) {
-      if (err) return res.status(500).json({ error: 'Database error' });
-      if (this.changes === 0) return res.status(404).json({ error: 'Batch not found' });
-      return res.json({ message: 'Batch updated' });
-    });
+      const { name } = req.params;
+      const { total_seats } = req.body;
+      
+      const result = await Batch.findOneAndUpdate(
+        { name },
+        { total_seats },
+        { new: true }
+      );
+      
+      if (!result) {
+        return res.status(404).json({ error: 'Batch not found' });
+      }
+      
+      console.log('[batches] PUT /:name success', { name });
+      res.json({ message: 'Batch updated' });
+    } catch (error) {
+      console.error('[batches] PUT /:name error:', error.message);
+      res.status(500).json({ error: 'Database error' });
+    }
   }
 );
 
-// Student cannot change batch after registration — batch is set only during Create Account. Only admin can change a student's batch.
+// Student cannot change batch after registration
 router.patch(
   '/me',
   authenticateToken,
   [body('batch').isIn(['morning', 'afternoon', 'evening']).withMessage('Batch must be morning/afternoon/evening')],
   (req, res) => {
-    if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ error: 'Students only' });
+    }
     return res.status(403).json({
       error: 'Batch can only be set during registration. Contact admin to change your batch.',
     });
@@ -115,61 +124,54 @@ router.patch(
   '/move-student',
   authenticateAdmin,
   [
-    body('student_id').isInt().withMessage('student_id is required'),
+    body('student_id').notEmpty().withMessage('student_id is required'),
     body('batch').isIn(['morning', 'afternoon', 'evening']).withMessage('Batch must be morning/afternoon/evening'),
   ],
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-
-    const { student_id, batch } = req.body;
-
-    // HARD VALIDATION: student_id must be provided and valid
-    if (!student_id) {
-      return res.status(400).json({ error: 'Student ID is required' });
-    }
-
-    const parsedId = parseInt(student_id, 10);
-    if (isNaN(parsedId) || parsedId <= 0) {
-      return res.status(400).json({ error: 'Student ID must be a valid positive number' });
-    }
-
-    console.log('[batches] move-student payload:', { student_id: parsedId, batch });
-
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { student_id, batch } = req.body;
+
+      // Validate MongoDB ObjectId
+      if (!String(student_id).match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({ error: 'Invalid student ID format' });
+      }
+
+      console.log('[batches] PATCH /move-student payload:', { student_id, batch });
+
       // Check if student exists and get current batch
-      const student = await new Promise((resolve, reject) => {
-        db.get(`SELECT id, batch FROM students WHERE id = ?`, [parsedId], (err, s) => {
-          if (err) reject(err);
-          else if (!s) reject(new Error('Student not found'));
-          else resolve(s);
-        });
-      });
+      const student = await Student.findById(student_id);
+      if (!student) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
 
       if (student.batch === batch) {
         return res.status(400).json({ error: 'Student is already in this batch' });
       }
 
       // Check if batch is valid and has space
-      const summary = await new Promise((resolve, reject) => {
-        db.get(`SELECT total_seats FROM batches WHERE name = ?`, [batch], (err, b) => {
-          if (err) return reject(err);
-          if (!b) return reject(new Error('Invalid batch'));
-          db.get(`SELECT COUNT(*) as filled FROM students WHERE batch = ?`, [batch], (err2, count) => {
-            if (err2) return reject(err2);
-            const filled = count?.filled || 0;
-            const available = Math.max(0, b.total_seats - filled);
-            if (available <= 0) return reject(new Error('Selected batch is full'));
-            resolve({ total: b.total_seats, filled, available });
-          });
-        });
-      });
+      const batchDoc = await Batch.findOne({ name: batch });
+      if (!batchDoc) {
+        return res.status(400).json({ error: 'Invalid batch selected' });
+      }
+
+      const filled = await Student.countDocuments({ batch });
+      const available = Math.max(0, batchDoc.total_seats - filled);
+      if (available <= 0) {
+        return res.status(400).json({ error: 'Selected batch is full' });
+      }
 
       // Use safe update to move student
-      const updatedStudent = await safeUpdateStudent(parsedId, { batch });
+      const updatedStudent = await safeUpdateStudent(student_id, { batch });
+      console.log('[batches] PATCH /move-student success', { student_id });
+      
       res.json({ message: 'Student moved safely', batch, student: updatedStudent });
     } catch (error) {
-      console.error('[batches] move-student error:', error.message);
+      console.error('[batches] PATCH /move-student error:', error.message);
       res.status(400).json({ error: error.message });
     }
   }
