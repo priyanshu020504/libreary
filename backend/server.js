@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+// Deployment: Fresh build from commit e27f4b5+ (MongoDB migration complete, SQLite removed)
 // Import database connection
 const { connectToDatabase } = require('./database/mongodb');
 
